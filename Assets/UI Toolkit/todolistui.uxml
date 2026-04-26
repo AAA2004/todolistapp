@@ -1,0 +1,107 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
+    <ui:VisualElement name="MainContainer" style="flex-grow: 1; background-color: #0B192C; color: white; font-size: 50px;">
+        
+        <ui:VisualElement name="LoginPage" style="flex-grow: 1; align-items: center; justify-content: center; display: none;">
+            <ui:VisualElement style="background-color: #FF9800; width: 100%; padding: 40px; margin-bottom: 60px; align-items: center;">
+                <ui:Label text="Reminder App" style="font-size: 100px; -unity-font-style: bold; color: white;" />
+            </ui:VisualElement>
+            
+            <ui:VisualElement style="width: 900px; margin-bottom: 20px;">
+                <ui:Label text="Username" style="-unity-font-style: bold; margin-bottom: 10px;" />
+                <ui:TextField name="UsernameInput" style="background-color: #FFFFFF; color: #000000; border-radius: 20px; padding: 15px;" />
+            </ui:VisualElement>
+
+            <ui:VisualElement style="width: 900px; margin-bottom: 20px;">
+                <ui:Label text="Password" style="-unity-font-style: bold; margin-bottom: 10px;" />
+                <ui:TextField name="PasswordInput" password="true" style="background-color: #FFFFFF; color: #000000; border-radius: 20px; padding: 15px;" />
+            </ui:VisualElement>
+            
+            <ui:Label name="LoginErrorLabel" style="color: #FF5252; margin-top: 20px; display: none;" />
+            
+            <ui:Button name="LoginButton" text="Login" style="margin-top: 40px; width: 900px; height: 100px; background-color: #4CAF50; border-radius: 50px; color: white; border-width: 0;" />
+            <ui:Button name="SignupButton" text="Sign Up" style="margin-top: 30px; width: 900px; height: 100px; background-color: #4CAF50; border-radius: 50px; color: white; border-width: 0;" />
+        </ui:VisualElement>
+
+        <ui:VisualElement name="WeekPage" style="flex-grow: 1; display: none; align-items: center;">
+            <ui:VisualElement style="background-color: #FF9800; width: 100%; padding: 40px; margin-bottom: 40px; align-items: center; flex-direction: row; justify-content: space-between;">
+                <ui:Button name="LogoutButton" text="Logout" style="width: 200px; height: 80px; background-color: #E53935; border-radius: 40px; color: white; border-width: 0;" />
+                <ui:Label text="Select a Day" style="font-size: 80px; -unity-font-style: bold; color: white;" />
+                <ui:Button name="ViewProgressBtn" text="Progress" style="width: 200px; height: 80px; background-color: #4CAF50; border-radius: 40px; color: white; border-width: 0;" />
+            </ui:VisualElement>
+            
+            <ui:ScrollView style="width: 900px;">
+                <ui:Button name="BtnMonday" text="Monday" style="height: 90px; background-color: #4CAF50; border-radius: 45px; color: white; margin-bottom: 20px; border-width: 0;" />
+                <ui:Button name="BtnTuesday" text="Tuesday" style="height: 90px; background-color: #4CAF50; border-radius: 45px; color: white; margin-bottom: 20px; border-width: 0;" />
+                <ui:Button name="BtnWednesday" text="Wednesday" style="height: 90px; background-color: #4CAF50; border-radius: 45px; color: white; margin-bottom: 20px; border-width: 0;" />
+                <ui:Button name="BtnThursday" text="Thursday" style="height: 90px; background-color: #4CAF50; border-radius: 45px; color: white; margin-bottom: 20px; border-width: 0;" />
+                <ui:Button name="BtnFriday" text="Friday" style="height: 90px; background-color: #4CAF50; border-radius: 45px; color: white; margin-bottom: 20px; border-width: 0;" />
+                <ui:Button name="BtnSaturday" text="Saturday" style="height: 90px; background-color: #4CAF50; border-radius: 45px; color: white; margin-bottom: 20px; border-width: 0;" />
+                <ui:Button name="BtnSunday" text="Sunday" style="height: 90px; background-color: #4CAF50; border-radius: 45px; color: white; margin-bottom: 20px; border-width: 0;" />
+            </ui:ScrollView>
+        </ui:VisualElement>
+
+        <ui:VisualElement name="DayPage" style="flex-grow: 1; display: none;">
+            <ui:VisualElement style="background-color: #FF9800; width: 100%; padding: 40px; align-items: center; flex-direction: row; justify-content: space-between;">
+                <ui:Button name="DayBackButton" text="&lt;" style="width: 100px; height: 100px; background-color: #4CAF50; border-radius: 50px; color: white; border-width: 0;" />
+                <ui:Label name="DayTitleLabel" text="Monday" style="font-size: 100px; -unity-font-style: bold; color: white;" />
+                <ui:Button name="AddNewTaskBtn" text="+" style="width: 100px; height: 100px; background-color: #4CAF50; border-radius: 50px; color: white; border-width: 0;" />
+            </ui:VisualElement>
+            
+            <ui:ScrollView name="TaskListScroll" style="flex-grow: 1; padding: 40px;">
+            </ui:ScrollView>
+        </ui:VisualElement>
+
+        <ui:VisualElement name="DetailsPage" style="flex-grow: 1; display: none;">
+            <ui:VisualElement style="background-color: #FF9800; width: 100%; padding: 40px; align-items: center; flex-direction: row;">
+                <ui:Button name="DetailsBackButton" text="&lt; Back" style="width: 250px; height: 90px; background-color: #4CAF50; border-radius: 45px; color: white; border-width: 0;" />
+                <ui:Label name="TaskDetailTitle" text="Task Editor" style="font-size: 80px; -unity-font-style: bold; color: white; margin-left: 40px;" />
+            </ui:VisualElement>
+            
+            <ui:ScrollView style="flex-grow: 1; padding: 40px;">
+                
+                <ui:VisualElement style="margin-bottom: 40px;">
+                    <ui:Label text="Task Name:" style="-unity-font-style: bold; margin-bottom: 10px;" />
+                    <ui:TextField name="TaskNameInput" style="background-color: #FFFFFF; color: #000000; border-radius: 20px; padding: 15px;" />
+                </ui:VisualElement>
+
+                <ui:DropdownField name="TimeDropdown" label="Time of Day" choices="06:00,07:00,08:00,09:00,10:00,11:00,12:00,13:00,14:00,15:00,16:00,17:00,18:00,19:00,20:00,21:00,22:00,23:00" value="12:00" style="margin-bottom: 40px;" />
+
+                <ui:DropdownField name="PriorityDropdown" label="Priority" choices="Urgent, Important, Low Priority" value="Important" style="margin-bottom: 40px;" />
+
+                <ui:Label text="Assign to Days:" style="-unity-font-style: bold; margin-bottom: 20px;" />
+                <ui:VisualElement style="flex-direction: row; flex-wrap: wrap; margin-bottom: 40px;">
+                    <ui:Toggle name="ToggleMon" label="Mon" style="margin-right: 30px;" />
+                    <ui:Toggle name="ToggleTue" label="Tue" style="margin-right: 30px;" />
+                    <ui:Toggle name="ToggleWed" label="Wed" style="margin-right: 30px;" />
+                    <ui:Toggle name="ToggleThu" label="Thu" style="margin-right: 30px;" />
+                    <ui:Toggle name="ToggleFri" label="Fri" style="margin-right: 30px;" />
+                    <ui:Toggle name="ToggleSat" label="Sat" style="margin-right: 30px;" />
+                    <ui:Toggle name="ToggleSun" label="Sun" style="margin-right: 30px;" />
+                </ui:VisualElement>
+
+                <ui:Label text="Task Description:" style="-unity-font-style: bold; margin-bottom: 20px;" />
+                <ui:TextField name="TaskDescriptionInput" multiline="true" value="Restock honey, nuts, and dried berries. Review C++ parallel programming for the Coventry project." style="background-color: #FFFFFF; border-radius: 30px; min-height: 300px; margin-bottom: 40px; padding: 20px; white-space: normal; color: #000000; -unity-text-align: upper-left;" />
+
+                <ui:Button name="SaveTaskButton" text="Save Changes" style="margin-top: 20px; height: 100px; background-color: #4CAF50; border-radius: 50px; color: white; font-size: 50px; -unity-font-style: bold; border-width: 0;" />
+            </ui:ScrollView>
+        </ui:VisualElement>
+
+        <ui:VisualElement name="ProgressPage" style="flex-grow: 1; display: none; align-items: center;">
+            <ui:VisualElement style="background-color: #FF9800; width: 100%; padding: 40px; margin-bottom: 40px; align-items: center; flex-direction: row;">
+                <ui:Button name="ProgressBackButton" text="&lt; Back" style="width: 250px; height: 90px; background-color: #4CAF50; border-radius: 45px; color: white; border-width: 0;" />
+                <ui:Label text="Weekly Progress" style="font-size: 80px; -unity-font-style: bold; color: white; margin-left: 40px;" />
+            </ui:VisualElement>
+
+            <ui:VisualElement style="background-color: #11284B; padding: 60px; border-radius: 50px; align-items: center; width: 900px; margin-top: 100px;">
+                <ui:Label text="Tasks Completed" style="font-size: 60px; color: #87CEFA; margin-bottom: 20px;" />
+                <ui:Label name="PercentageLabel" text="0%" style="font-size: 150px; -unity-font-style: bold; color: #4CAF50; margin-bottom: 20px;" />
+                <ui:Label name="FractionLabel" text="0 / 0 Tasks" style="font-size: 50px; color: white;" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        
+        <ui:VisualElement name="NotificationPopup" style="position: absolute; top: 40px; right: 40px; background-color: #E53935; padding: 40px; border-radius: 30px; display: none; align-items: center; justify-content: center;">
+            <ui:Label name="NotificationText" text="Task Reminder!" style="font-size: 60px; -unity-font-style: bold; color: white;" />
+        </ui:VisualElement>
+
+    </ui:VisualElement>
+</ui:UXML>
