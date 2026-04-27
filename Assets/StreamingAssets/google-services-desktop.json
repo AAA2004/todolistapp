@@ -1,0 +1,32 @@
+{
+  "project_info": {
+    "project_number": "35068698027",
+    "firebase_url": "https://to-do-list-5acf0-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "to-do-list-5acf0",
+    "storage_bucket": "to-do-list-5acf0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:35068698027:ios:f811a9ce309b7480a446ee",
+        "android_client_info": {
+          "package_name": "com.DefaultCompany.todolistapp"
+        }
+      },
+      "api_key": [
+        {
+          "current_key": "AIzaSyA3IuWgGVxE8K4POTe1UG2j1Nf9qecNLHQ"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 0
+        },
+        "appinvite_service": {
+          "status": 1
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

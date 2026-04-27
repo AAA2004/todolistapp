@@ -3,6 +3,10 @@ using UnityEngine.UIElements;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Firebase;
+using Firebase.Database;
+using Firebase.Extensions;
+using System.Threading.Tasks;
 
 [RequireComponent(typeof(UIDocument))]
 public class ReminderUIManager : MonoBehaviour
@@ -13,16 +17,19 @@ public class ReminderUIManager : MonoBehaviour
     private TextField usernameInput, passwordInput, taskNameInput, taskDescriptionInput;
     private DropdownField priorityDropdown, timeDropdown;
     private ScrollView taskListScroll;
-   
     
+    // State Tracking
     private string currentUsername = "";
     private string currentDaySelected = "";
     private string currentTaskName = "";
     private readonly string[] shortDays = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
 
-    
     private Queue<string> popupQueue = new Queue<string>();
     private bool isPopupShowing = false;
+
+    // --- FIREBASE VARIABLES ---
+    private DatabaseReference dbReference;
+    private bool isFirebaseReady = false;
 
     private void OnEnable()
     {
@@ -33,24 +40,20 @@ public class ReminderUIManager : MonoBehaviour
         dayPage = root.Q<VisualElement>("DayPage");
         detailsPage = root.Q<VisualElement>("DetailsPage");
         progressPage = root.Q<VisualElement>("ProgressPage");
-
         notificationPopup = root.Q<VisualElement>("NotificationPopup");
         notificationText = root.Q<Label>("NotificationText");
-        
         usernameInput = root.Q<TextField>("UsernameInput");
         passwordInput = root.Q<TextField>("PasswordInput");
         loginErrorLabel = root.Q<Label>("LoginErrorLabel");
-        
         taskNameInput = root.Q<TextField>("TaskNameInput");
         taskDescriptionInput = root.Q<TextField>("TaskDescriptionInput");
         priorityDropdown = root.Q<DropdownField>("PriorityDropdown");
         timeDropdown = root.Q<DropdownField>("TimeDropdown");
         taskListScroll = root.Q<ScrollView>("TaskListScroll");
-        
         percentageLabel = root.Q<Label>("PercentageLabel");
         fractionLabel = root.Q<Label>("FractionLabel");
 
-        
+        // UI Wiring
         root.Q<Button>("LoginButton").clicked += TryLogin;
         root.Q<Button>("SignupButton").clicked += CreateAccount;
         root.Q<Button>("LogoutButton").clicked += Logout;
@@ -66,13 +69,75 @@ public class ReminderUIManager : MonoBehaviour
         root.Q<Button>("AddNewTaskBtn").clicked += () => SelectTask("New Task");
         root.Q<Button>("DetailsBackButton").clicked += () => SwitchToPage(dayPage);
         root.Q<Button>("SaveTaskButton").clicked += SaveTaskData;
-        
         root.Q<Button>("ViewProgressBtn").clicked += ShowProgressPage;
         root.Q<Button>("ProgressBackButton").clicked += () => SwitchToPage(weekPage);
 
+        // INITIALIZE FIREBASE
+        InitializeFirebase();
+
         SwitchToPage(loginPage);
-        
         InvokeRepeating(nameof(CheckForReminders), 1f, 60f);
+    }
+
+    // --- FIREBASE CORE METHODS ---
+    private void InitializeFirebase()
+    {
+        FirebaseApp.CheckAndFixDependenciesAsync().ContinueWithOnMainThread(task => {
+            if (task.Result == DependencyStatus.Available)
+            {
+                FirebaseApp.DefaultInstance.Options.DatabaseUrl = new Uri("https://to-do-list-5acf0-default-rtdb.europe-west1.firebasedatabase.app/");
+                dbReference = FirebaseDatabase.DefaultInstance.RootReference;
+                isFirebaseReady = true;
+                Debug.Log("Firebase successfully initialized and ready!");
+            }
+            else
+            {
+                Debug.LogError($"Could not resolve all Firebase dependencies: {task.Result}");
+            }
+        });
+    }
+
+    private void SaveDataToCloud(string key, string value)
+    {
+        // 1. Backup to Local Storage instantly
+        PlayerPrefs.SetString(key, value);
+        PlayerPrefs.Save();
+
+        // 2. Push to Main Cloud Storage
+        if (isFirebaseReady && !string.IsNullOrEmpty(currentUsername))
+        {
+            dbReference.Child("Users").Child(currentUsername).Child(key).SetValueAsync(value);
+        }
+    }
+
+    private void DeleteDataFromCloud(string key)
+    {
+        PlayerPrefs.DeleteKey(key);
+        PlayerPrefs.Save();
+
+        if (isFirebaseReady && !string.IsNullOrEmpty(currentUsername))
+        {
+            dbReference.Child("Users").Child(currentUsername).Child(key).RemoveValueAsync();
+        }
+    }
+
+    private void SyncCloudToLocal()
+    {
+        if (!isFirebaseReady) return;
+
+        // Fetch all data for the logged-in user and overwrite the local backup
+        dbReference.Child("Users").Child(currentUsername).GetValueAsync().ContinueWithOnMainThread(task => {
+            if (task.IsCompleted && task.Result.Exists)
+            {
+                DataSnapshot snapshot = task.Result;
+                foreach (DataSnapshot child in snapshot.Children)
+                {
+                    PlayerPrefs.SetString(child.Key, child.Value.ToString());
+                }
+                PlayerPrefs.Save();
+                Debug.Log("Successfully synced from Firebase Cloud to Local Backup.");
+            }
+        });
     }
 
     private void SwitchToPage(VisualElement targetPage)
@@ -87,7 +152,7 @@ public class ReminderUIManager : MonoBehaviour
         loginErrorLabel.style.display = DisplayStyle.None; 
     }
 
-    
+    // --- ACCOUNT LOGIC ---
     private void CreateAccount()
     {
         if (string.IsNullOrEmpty(usernameInput.value) || string.IsNullOrEmpty(passwordInput.value))
@@ -97,25 +162,49 @@ public class ReminderUIManager : MonoBehaviour
             return;
         }
 
-        PlayerPrefs.SetString("User_" + usernameInput.value, passwordInput.value);
-        PlayerPrefs.Save();
-        
         currentUsername = usernameInput.value;
+        SaveDataToCloud("Account_Password", passwordInput.value);
+        
+        SyncCloudToLocal(); // Pull any existing data if they re-registered an old name
         SwitchToPage(weekPage);
     }
 
     private void TryLogin()
     {
-        string savedPassword = PlayerPrefs.GetString("User_" + usernameInput.value, "");
-        if (savedPassword != "" && savedPassword == passwordInput.value)
+        string localPassword = PlayerPrefs.GetString("Account_Password", "");
+        
+        // If local authentication fails, we should ideally check Firebase, 
+        // but for this prototype, we rely on the local cache sync.
+        if (localPassword != "" && localPassword == passwordInput.value)
         {
             currentUsername = usernameInput.value;
+            SyncCloudToLocal(); // Download latest tasks from another device
             SwitchToPage(weekPage);
         }
         else
         {
-            loginErrorLabel.text = "Invalid Username or Password.";
-            loginErrorLabel.style.display = DisplayStyle.Flex;
+            // Simple fallback to attempt Firebase check directly if local is missing
+            if (isFirebaseReady)
+            {
+                dbReference.Child("Users").Child(usernameInput.value).Child("Account_Password").GetValueAsync().ContinueWithOnMainThread(task => {
+                    if (task.IsCompleted && task.Result.Exists && task.Result.Value.ToString() == passwordInput.value)
+                    {
+                        currentUsername = usernameInput.value;
+                        SyncCloudToLocal();
+                        SwitchToPage(weekPage);
+                    }
+                    else
+                    {
+                        loginErrorLabel.text = "Invalid Username or Password.";
+                        loginErrorLabel.style.display = DisplayStyle.Flex;
+                    }
+                });
+            }
+            else
+            {
+                loginErrorLabel.text = "Invalid Username or Password (Offline).";
+                loginErrorLabel.style.display = DisplayStyle.Flex;
+            }
         }
     }
 
@@ -127,7 +216,7 @@ public class ReminderUIManager : MonoBehaviour
         SwitchToPage(loginPage);
     }
 
-    
+    // --- DAY & TASK LOGIC ---
     private void SelectDay(string dayName)
     {
         currentDaySelected = dayName;
@@ -142,7 +231,7 @@ public class ReminderUIManager : MonoBehaviour
     {
         taskListScroll.Clear(); 
         string shortDay = dayName.Substring(0, 3);
-        string savedTasksList = PlayerPrefs.GetString(currentUsername + "Tasks" + shortDay, "");
+        string savedTasksList = PlayerPrefs.GetString(currentUsername + "_Tasks_" + shortDay, "");
 
         if (string.IsNullOrEmpty(savedTasksList)) return;
 
@@ -154,28 +243,23 @@ public class ReminderUIManager : MonoBehaviour
         {
             if (string.IsNullOrEmpty(task)) continue;
 
-            string baseKey = currentUsername + "" + shortDay + "" + task;
+            string baseKey = currentUsername + "_" + shortDay + "_" + task;
             string state = PlayerPrefs.GetString(baseKey + "_State", "Pending");
             string time = PlayerPrefs.GetString(baseKey + "_Time", "12:00");
 
-            
             if (state == "Pending" && IsTimePassed(shortDay, time))
             {
                 state = "Missed";
-                PlayerPrefs.SetString(baseKey + "_State", state);
-                PlayerPrefs.Save();
+                SaveDataToCloud(baseKey + "_State", state);
             }
 
-            
             if (state == "Completed") continue;
 
-            
             VisualElement row = new VisualElement();
             row.style.flexDirection = FlexDirection.Row;
             row.style.marginBottom = 30;
             row.style.height = 120;
 
-            
             Button taskBtn = new Button();
             taskBtn.text = $"{task} ({time}) - {state}"; 
             taskBtn.style.flexGrow = 1;
@@ -188,7 +272,6 @@ public class ReminderUIManager : MonoBehaviour
             string capturedTaskName = task;
             taskBtn.clicked += () => SelectTask(capturedTaskName);
 
-            
             Button doneBtn = new Button();
             doneBtn.text = "✓";
             doneBtn.style.width = 150;
@@ -202,16 +285,14 @@ public class ReminderUIManager : MonoBehaviour
 
             row.Add(taskBtn);
             row.Add(doneBtn); 
-
             taskListScroll.Add(row);
         }
     }
 
     private void MarkTaskAsCompleted(string shortDay, string taskName)
     {
-        PlayerPrefs.SetString(currentUsername + "" + shortDay + "" + taskName + "_State", "Completed");
-        PlayerPrefs.Save();
-        LoadTasksIntoUI(currentDaySelected); 
+        SaveDataToCloud(currentUsername + "_" + shortDay + "_" + taskName + "_State", "Completed");
+        LoadTasksIntoUI(currentDaySelected);
     }
 
     private void SelectTask(string taskName)
@@ -225,7 +306,7 @@ public class ReminderUIManager : MonoBehaviour
 
         if (taskName != "New Task")
         {
-            string baseKey = currentUsername + "" + currentShortDay + "" + taskName;
+            string baseKey = currentUsername + "_" + currentShortDay + "_" + taskName;
             taskDescriptionInput.value = PlayerPrefs.GetString(baseKey + "_Desc", "");
             priorityDropdown.value = PlayerPrefs.GetString(baseKey + "_Priority", "Important");
             timeDropdown.value = PlayerPrefs.GetString(baseKey + "_Time", "12:00");
@@ -243,7 +324,7 @@ public class ReminderUIManager : MonoBehaviour
             if (toggle != null)
             {
                 if (taskName == "New Task") toggle.value = (day == currentShortDay);
-                else toggle.value = PlayerPrefs.GetString(currentUsername + "Tasks" + day, "").Contains(taskName);
+                else toggle.value = PlayerPrefs.GetString(currentUsername + "_Tasks_" + day, "").Contains(taskName);
             }
         }
         SwitchToPage(detailsPage);
@@ -256,14 +337,13 @@ public class ReminderUIManager : MonoBehaviour
 
         VisualElement root = GetComponent<UIDocument>().rootVisualElement;
 
-        
         if (currentTaskName != "New Task" && currentTaskName != newTaskName)
         {
-            string listKey = currentUsername + "Tasks" + currentDaySelected.Substring(0, 3);
+            string listKey = currentUsername + "_Tasks_" + currentDaySelected.Substring(0, 3);
             string oldList = PlayerPrefs.GetString(listKey, "");
             List<string> oldTasks = new List<string>(oldList.Split('|'));
             oldTasks.Remove(currentTaskName);
-            PlayerPrefs.SetString(listKey, string.Join("|", oldTasks));
+            SaveDataToCloud(listKey, string.Join("|", oldTasks));
         }
 
         foreach (string day in shortDays)
@@ -271,42 +351,33 @@ public class ReminderUIManager : MonoBehaviour
             Toggle dayToggle = root.Q<Toggle>($"Toggle{day}");
             if (dayToggle != null && dayToggle.value)
             {
-                string listKey = currentUsername + "Tasks" + day;
+                string listKey = currentUsername + "_Tasks_" + day;
                 string tasksList = PlayerPrefs.GetString(listKey, "");
                 
                 if (!tasksList.Contains(newTaskName))
                 {
                     if (tasksList.Length > 0) tasksList += "|";
                     tasksList += newTaskName;
-                    PlayerPrefs.SetString(listKey, tasksList);
+                    SaveDataToCloud(listKey, tasksList);
                 }
 
-                string baseKey = currentUsername + "" + day + "" + newTaskName;
-                PlayerPrefs.SetString(baseKey + "_Desc", taskDescriptionInput.value);
-                PlayerPrefs.SetString(baseKey + "_Priority", priorityDropdown.value);
-                PlayerPrefs.SetString(baseKey + "_Time", timeDropdown.value);
-                
+                string baseKey = currentUsername + "_" + day + "_" + newTaskName;
+                SaveDataToCloud(baseKey + "_Desc", taskDescriptionInput.value);
+                SaveDataToCloud(baseKey + "_Priority", priorityDropdown.value);
+                SaveDataToCloud(baseKey + "_Time", timeDropdown.value);
                 
                 if (string.IsNullOrEmpty(PlayerPrefs.GetString(baseKey + "_State", "")))
-                    PlayerPrefs.SetString(baseKey + "_State", "Pending");
+                    SaveDataToCloud(baseKey + "_State", "Pending");
             }
         }
 
-        PlayerPrefs.Save();
-        
         LoadTasksIntoUI(currentDaySelected);
         SwitchToPage(dayPage);
-
-        
         CheckForReminders();
     }
 
-    
-
-    private int GetDayIndex(string shortDay)
-    {
-        return Array.IndexOf(shortDays, shortDay); 
-    }
+    // --- TIME & STATISTICS LOGIC ---
+    private int GetDayIndex(string shortDay) { return Array.IndexOf(shortDays, shortDay); }
 
     private int GetTodayIndex()
     {
@@ -320,12 +391,11 @@ public class ReminderUIManager : MonoBehaviour
         int todayIndex = GetTodayIndex();
 
         if (taskDayIndex < todayIndex) return true; 
-        
         if (taskDayIndex == todayIndex)
         {
             TimeSpan current = DateTime.Now.TimeOfDay;
             TimeSpan target = TimeSpan.Parse(taskTime + ":00");
-            if (current > target) return true;
+            if (current > target) return true; 
         }
         return false;
     }
@@ -337,7 +407,7 @@ public class ReminderUIManager : MonoBehaviour
 
         foreach (string day in shortDays)
         {
-            string savedTasksList = PlayerPrefs.GetString(currentUsername + "Tasks" + day, "");
+            string savedTasksList = PlayerPrefs.GetString(currentUsername + "_Tasks_" + day, "");
             if (string.IsNullOrEmpty(savedTasksList)) continue;
 
             string[] tasks = savedTasksList.Split('|');
@@ -346,7 +416,7 @@ public class ReminderUIManager : MonoBehaviour
                 if (string.IsNullOrEmpty(task)) continue;
                 totalTasks++;
                 
-                if (PlayerPrefs.GetString(currentUsername + "" + day + "" + task + "_State", "") == "Completed")
+                if (PlayerPrefs.GetString(currentUsername + "_" + day + "_" + task + "_State", "") == "Completed")
                 {
                     completedTasks++;
                 }
@@ -360,13 +430,13 @@ public class ReminderUIManager : MonoBehaviour
         SwitchToPage(progressPage);
     }
 
-    
+    // --- NOTIFICATION LOGIC ---
     private void CheckForReminders()
     {
         if (string.IsNullOrEmpty(currentUsername)) return;
 
         string todayShort = shortDays[GetTodayIndex()];
-        string savedTasksList = PlayerPrefs.GetString(currentUsername + "Tasks" + todayShort, "");
+        string savedTasksList = PlayerPrefs.GetString(currentUsername + "_Tasks_" + todayShort, "");
         if (string.IsNullOrEmpty(savedTasksList)) return;
 
         string[] tasks = savedTasksList.Split('|');
@@ -375,20 +445,17 @@ public class ReminderUIManager : MonoBehaviour
         foreach (string task in tasks)
         {
             if (string.IsNullOrEmpty(task)) continue;
-            string baseKey = currentUsername + "" + todayShort + "" + task;
+            string baseKey = currentUsername + "_" + todayShort + "_" + task;
             
             if (PlayerPrefs.GetString(baseKey + "_State", "") == "Completed") continue;
             
             TimeSpan target = TimeSpan.Parse(PlayerPrefs.GetString(baseKey + "_Time", "12:00") + ":00");
             double minutesUntil = (target - current).TotalMinutes;
 
-            
             if (minutesUntil > 0 && minutesUntil <= 60 && PlayerPrefs.GetInt(baseKey + "_Notified", 0) == 0)
             {
-                Debug.Log($"[Reminder Triggered] Task '{task}' is scheduled in {Math.Round(minutesUntil)} minutes!");
                 popupQueue.Enqueue($"Upcoming: {task} at {PlayerPrefs.GetString(baseKey + "_Time", "")}");
-                PlayerPrefs.SetInt(baseKey + "_Notified", 1); 
-                PlayerPrefs.Save();
+                SaveDataToCloud(baseKey + "_Notified", "1"); 
             }
         }
 
